@@ -1,5 +1,6 @@
 import tkinter as tk
 from tkinter import messagebox
+import numpy as np
 
 
 class MainMenu:
@@ -33,7 +34,7 @@ class GameOfLifeGUI:
         self.width = width
         self.height = height
         self.cell_size = cell_size
-        self.field = [[False] * width for _ in range(height)]
+        self.field = np.zeros((height, width), dtype=bool)
         self.generations = 0
         self.is_running = False
 
@@ -47,6 +48,8 @@ class GameOfLifeGUI:
         self.ruler_active = False  # Flag indicating if ruler is active
         self.ruler_start_x = -1  # X coordinate of the ruler start point
         self.ruler_start_y = -1  # Y coordinate of the ruler start point
+
+        self.show_borders = False  # Flag indicating if cell borders should be displayed
 
         self.root = tk.Tk()
         self.root.title("Game of Life")
@@ -78,6 +81,9 @@ class GameOfLifeGUI:
         self.ruler_button = tk.Button(self.control_frame, text="Ruler", command=self.toggle_ruler)
         self.ruler_button.pack(side="left")
 
+        self.border_button = tk.Button(self.control_frame, text="Toggle Borders", command=self.toggle_borders)
+        self.border_button.pack(side="left")
+
         self.draw_field()
 
     def run(self):
@@ -96,8 +102,8 @@ class GameOfLifeGUI:
 
     def toggle_cell(self, event):
         if not self.is_running and not self.ruler_active:
-            x = int((event.x + self.view_x * self.cell_size * self.zoom_scale) / (self.zoom_scale * self.cell_size))
-            y = int((event.y + self.view_y * self.cell_size * self.zoom_scale) / (self.zoom_scale * self.cell_size))
+            x = int((event.x + self.view_x * self.cell_size * self.zoom_scale) // (self.zoom_scale * self.cell_size))
+            y = int((event.y + self.view_y * self.cell_size * self.zoom_scale) // (self.zoom_scale * self.cell_size))
             if 0 <= x < self.width and 0 <= y < self.height:
                 self.field[y][x] = not self.field[y][x]
                 self.draw_field()
@@ -112,20 +118,40 @@ class GameOfLifeGUI:
 
     def draw_field(self):
         self.canvas.delete(tk.ALL)
+
+        # Draw field outline
+        x1 = -self.view_x * self.cell_size * self.zoom_scale
+        y1 = -self.view_y * self.cell_size * self.zoom_scale
+        x2 = x1 + self.width * self.cell_size * self.zoom_scale
+        y2 = y1 + self.height * self.cell_size * self.zoom_scale
+        self.canvas.create_rectangle(x1, y1, x2, y2, outline="black")
+
+        if self.show_borders:
+            # Draw cell borders
+            for i in range(self.height + 1):
+                y = (i - self.view_y) * self.cell_size * self.zoom_scale
+                self.canvas.create_line(0, y, self.width * self.cell_size * self.zoom_scale, y, fill="black")
+
+            for j in range(self.width + 1):
+                x = (j - self.view_x) * self.cell_size * self.zoom_scale
+                self.canvas.create_line(x, 0, x, self.height * self.cell_size * self.zoom_scale, fill="black")
+
+        # Draw filled-in squares
         for i in range(self.height):
             for j in range(self.width):
-                x1 = (j - self.view_x) * self.cell_size * self.zoom_scale
-                y1 = (i - self.view_y) * self.cell_size * self.zoom_scale
-                x2 = x1 + self.cell_size * self.zoom_scale
-                y2 = y1 + self.cell_size * self.zoom_scale
-
-                if self.field[i][j]:
+                if self.field[i, j]:
+                    x1 = (j - self.view_x) * self.cell_size * self.zoom_scale
+                    y1 = (i - self.view_y) * self.cell_size * self.zoom_scale
+                    x2 = x1 + self.cell_size * self.zoom_scale
+                    y2 = y1 + self.cell_size * self.zoom_scale
                     self.canvas.create_rectangle(x1, y1, x2, y2, fill="black")
-                else:
-                    self.canvas.create_rectangle(x1, y1, x2, y2, fill="white")
 
-                if self.ruler_active and self.is_selected_square(j, i):
-                    self.canvas.create_rectangle(x1, y1, x2, y2, fill="blue")
+        if self.ruler_active and self.ruler_start_x >= 0 and self.ruler_start_y >= 0:
+            x1 = (self.ruler_start_x - self.view_x) * self.cell_size * self.zoom_scale
+            y1 = (self.ruler_start_y - self.view_y) * self.cell_size * self.zoom_scale
+            x2 = x1 + self.cell_size * self.zoom_scale
+            y2 = y1 + self.cell_size * self.zoom_scale
+            self.canvas.create_rectangle(x1, y1, x2, y2, fill="blue")
 
     def pause_game(self):
         self.is_running = False
@@ -142,15 +168,11 @@ class GameOfLifeGUI:
 
     def reset_game(self):
         self.pause_game()
-        self.clear_field()
+        self.field = np.zeros((self.height, self.width), dtype=bool)
         self.generations = 0
         self.root.title("Game of Life")
         self.play_button.config(text="Play")
-
-    def clear_field(self):
-        if not self.is_running:
-            self.field = [[False] * self.width for _ in range(self.height)]
-            self.draw_field()
+        self.draw_field()
 
     def zoom(self, event):
         if event.delta > 0:
@@ -195,8 +217,8 @@ class GameOfLifeGUI:
         self.draw_field()
 
     def ruler_click(self, event):
-        x = int((event.x + self.view_x * self.cell_size * self.zoom_scale) / (self.zoom_scale * self.cell_size))
-        y = int((event.y + self.view_y * self.cell_size * self.zoom_scale) / (self.zoom_scale * self.cell_size))
+        x = int((event.x + self.view_x * self.cell_size * self.zoom_scale) // (self.zoom_scale * self.cell_size))
+        y = int((event.y + self.view_y * self.cell_size * self.zoom_scale) // (self.zoom_scale * self.cell_size))
         if 0 <= x < self.width and 0 <= y < self.height:
             if self.ruler_start_x == -1 and self.ruler_start_y == -1:
                 self.ruler_start_x = x
@@ -206,33 +228,25 @@ class GameOfLifeGUI:
                 messagebox.showinfo("Ruler", f"The distance in cells is: {distance}")
                 self.toggle_ruler()
         self.draw_field()
-    def is_selected_square(self, x, y):
-        if self.ruler_start_x == x and self.ruler_start_y == y:
-            return True
-        return False
+
+    def toggle_borders(self):
+        self.show_borders = not self.show_borders
+        self.draw_field()
 
     def count_neighbors(self, field, x, y):
-        count = 0
-        for i in range(-1, 2):
-            for j in range(-1, 2):
-                if i == 0 and j == 0:
-                    continue
-                if 0 <= x + i < self.width and 0 <= y + j < self.height:
-                    if field[y + j][x + i]:
-                        count += 1
-        return count
+        return np.sum(field[max(0, y - 1):min(y + 2, self.height), max(0, x - 1):min(x + 2, self.width)]) - field[y, x]
 
     def next_generation(self, field):
-        new_field = [[False] * self.width for _ in range(self.height)]
+        new_field = np.zeros((self.height, self.width), dtype=bool)
         for y in range(self.height):
             for x in range(self.width):
                 neighbors = self.count_neighbors(field, x, y)
-                if field[y][x]:
+                if field[y, x]:
                     if neighbors == 2 or neighbors == 3:
-                        new_field[y][x] = True
+                        new_field[y, x] = True
                 else:
                     if neighbors == 3:
-                        new_field[y][x] = True
+                        new_field[y, x] = True
         return new_field
 
 
