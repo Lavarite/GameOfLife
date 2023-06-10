@@ -127,14 +127,27 @@ class GameOfLifeGUI:
         self.canvas.create_rectangle(x1, y1, x2, y2, outline="black")
 
         if self.show_borders:
-            # Draw cell borders
+            # Draw horizontal cell borders
             for i in range(self.height + 1):
                 y = (i - self.view_y) * self.cell_size * self.zoom_scale
-                self.canvas.create_line(0, y, self.width * self.cell_size * self.zoom_scale, y, fill="black")
+                self.canvas.create_line(
+                    -self.view_x * self.cell_size * self.zoom_scale,
+                    y,
+                    (-self.view_x + self.width) * self.cell_size * self.zoom_scale,
+                    y,
+                    fill="black"
+                )
 
+            # Draw vertical cell borders
             for j in range(self.width + 1):
                 x = (j - self.view_x) * self.cell_size * self.zoom_scale
-                self.canvas.create_line(x, 0, x, self.height * self.cell_size * self.zoom_scale, fill="black")
+                self.canvas.create_line(
+                    x,
+                    -self.view_y * self.cell_size * self.zoom_scale,
+                    x,
+                    (-self.view_y + self.height) * self.cell_size * self.zoom_scale,
+                    fill="black"
+                )
 
         # Draw filled-in squares
         for i in range(self.height):
@@ -200,6 +213,7 @@ class GameOfLifeGUI:
 
         # Redraw the field with the updated view position
         self.draw_field()
+
 
     def toggle_ruler(self):
         self.ruler_start_x = -1
