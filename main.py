@@ -1,3 +1,4 @@
+import json
 import tkinter as tk
 from tkinter import filedialog, messagebox
 import numpy as np
@@ -131,6 +132,11 @@ class GameOfLifeGUI:
         self.ruler_start_x = -1  # X coordinate of the ruler start point
         self.ruler_start_y = -1  # Y coordinate of the ruler start point
 
+        self.selection_start_x = -1  # X coordinate of the selection start point
+        self.selection_start_y = -1  # Y coordinate of the selection start point
+        self.selection_end_x = -1  # X coordinate of the selection end point
+        self.selection_end_y = -1   # Y coordinate of the selection end point
+
         self.show_borders = False  # Flag indicating if cell borders should be displayed
 
         self.schematics_folder = schematics_folder
@@ -169,12 +175,110 @@ class GameOfLifeGUI:
         self.settings_menu.add_command(label="Toggle Borders", command=self.toggle_borders)
         self.settings_menu.add_command(label="Settings", command=self.open_settings)
 
+        self.schematics_menu = tk.Menu(self.root, tearoff=False)
+        #self.schematics_menu.add_command(label="Load Schematic", command=self.load_schematic_menu)
+        self.schematics_menu.add_command(label="Save Schematic", command=self.save_schematic)
+
         self.menu_bar = tk.Menu(self.root)
         self.menu_bar.add_command(label="Exit", command=self.return_to_main_menu)
         self.menu_bar.add_cascade(label="Settings", menu=self.settings_menu)
+        self.menu_bar.add_cascade(label="Schematics", menu=self.schematics_menu)
         self.root.config(menu=self.menu_bar)
 
         self.draw_field()
+
+    def save_schematic(self):
+        self.canvas.bind("<Button-1>", self.start_selection)
+        self.canvas.bind("<B1-Motion>", self.update_selection)
+        self.canvas.bind("<ButtonRelease-1>", self.end_selection)
+        self.play_button.config(state=tk.DISABLED)
+        self.reset_button.config(state=tk.DISABLED)
+
+    def start_selection(self, event):
+        self.selection_start_x = int((event.x + self.view_x * self.cell_size * self.zoom_scale) // (self.zoom_scale * self.cell_size))
+        self.selection_start_y = int((event.y + self.view_y * self.cell_size * self.zoom_scale) // (self.zoom_scale * self.cell_size))
+        self.draw_field()
+
+    def update_selection(self, event):
+        self.selection_end_x = int((event.x + self.view_x * self.cell_size * self.zoom_scale) // (self.zoom_scale * self.cell_size))+1
+        self.selection_end_y = int((event.y + self.view_y * self.cell_size * self.zoom_scale) // (self.zoom_scale * self.cell_size))+1
+        self.draw_field()
+
+    def end_selection(self, event):
+        self.update_selection(event)
+        self.canvas.unbind("<B1-Motion>")
+        self.canvas.unbind("<ButtonRelease-1>")
+        self.canvas.bind("<Button-1>", self.toggle_cell)
+        self.save_schematic_dialog()
+
+    def save_schematic_dialog(self):
+        dialog = tk.Toplevel(self.root)
+        dialog.title("Save Schematic")
+
+        filename_label = tk.Label(dialog, text="Name of the schematic:")
+        filename_label.pack()
+
+        filename_entry = tk.Entry(dialog)
+        filename_entry.pack()
+
+        save_button = tk.Button(
+            dialog,
+            text="Save",
+            command=lambda: self.save_and_close_schematic(dialog, filename_entry.get())
+        )
+        save_button.pack()
+
+        cancel_button = tk.Button(dialog, text="Cancel", command=dialog.destroy)
+        cancel_button.pack()
+
+        dialog.protocol("WM_DELETE_WINDOW", lambda: self.save_schematic_reset(dialog))
+
+    def save_and_close_schematic(self,dialog=None,filename_entry=None):
+        self.save_selection_as_schematic(filename_entry)
+        self.save_schematic_reset(dialog)
+
+    def save_schematic_reset(self,dialog=None):
+        try:
+            dialog.destroy()
+        except AttributeError:
+            print("cry abt it")
+        self.selection_start_x = -1
+        self.selection_start_y = -1
+        self.selection_end_x = -1
+        self.selection_end_y = -1
+        self.play_button.config(state=tk.NORMAL)
+        self.reset_button.config(state=tk.NORMAL)
+        self.draw_field()
+
+    def save_selection_as_schematic(self, filename):
+        selected_cells = self.get_selected_cells()
+        if selected_cells.any():
+            schematic_data = {
+                "field": selected_cells.tolist(),  # Convert the selection to a nested list
+                # Add any other necessary data you want to save in the schematic
+            }
+            try:
+                with open(self.schematics_folder + '/' + filename, "w") as file:
+                    json.dump(schematic_data, file)
+                messagebox.showinfo("Save Schematic", "Schematic saved successfully.")
+                self.save_schematic_reset()
+            except PermissionError:
+                messagebox.showerror("Save Schematic", "Could not save the schematic.")
+        else:
+            messagebox.showwarning("Save Schematic", "No cells selected.")
+            self.save_schematic_reset()
+
+    def get_selected_cells(self):
+        # Calculate the selection boundaries
+        min_cell_x = min(self.selection_start_x, self.selection_end_x)
+        max_cell_x = max(self.selection_start_x, self.selection_end_x)
+        min_cell_y = min(self.selection_start_y, self.selection_end_y)
+        max_cell_y = max(self.selection_start_y, self.selection_end_y)
+
+        # Create a subarray of the selected cells from the game field
+        selected_cells = self.field[min_cell_y: max_cell_y, min_cell_x: max_cell_x]
+
+        return selected_cells
 
     def update_settings(self, zoom_sensitivity, pan_distance, schematics_folder):
         self.zoom_delta = zoom_sensitivity
@@ -267,12 +371,18 @@ class GameOfLifeGUI:
                     y2 = y1 + self.cell_size * self.zoom_scale
                     self.canvas.create_rectangle(x1, y1, x2, y2, fill="black")
 
+        # Draw selection rectangle
+        if self.selection_start_x >= 0 and self.selection_start_y >= 0 and self.selection_end_x >= 0 and self.selection_end_y >= 0:
+            self.canvas.create_rectangle(self.selection_start_x * self.zoom_scale * self.cell_size, self.selection_start_y * self.zoom_scale * self.cell_size, self.selection_end_x * self.zoom_scale * self.cell_size, self.selection_end_y * self.zoom_scale * self.cell_size, outline="red")
+
         if self.ruler_active and self.ruler_start_x >= 0 and self.ruler_start_y >= 0:
             x1 = (self.ruler_start_x - self.view_x) * self.cell_size * self.zoom_scale
             y1 = (self.ruler_start_y - self.view_y) * self.cell_size * self.zoom_scale
             x2 = x1 + self.cell_size * self.zoom_scale
             y2 = y1 + self.cell_size * self.zoom_scale
             self.canvas.create_rectangle(x1, y1, x2, y2, fill="blue")
+
+        self.canvas.pack()
 
     def pause_game(self):
         self.is_running = False
