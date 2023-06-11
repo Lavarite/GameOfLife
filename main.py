@@ -18,17 +18,12 @@ class MainMenu:
         self.exit_button = tk.Button(self.root, text="Exit", command=self.root.quit)
         self.exit_button.pack()
 
-        self.settings_window = None
-        self.zoom_sensitivity = 0.1
-        self.pan_distance = 1
-        self.schematics_folder = ""
-
     def run(self):
         self.root.mainloop()
 
     def play_game(self):
         self.root.destroy()  # Close the main menu window
-        gui = GameOfLifeGUI(100, 70, 10, self.zoom_sensitivity, self.pan_distance, self.schematics_folder)
+        gui = GameOfLifeGUI(100, 70, 10, 0.1, 1, 'C:/Users/avary/Desktop/folder')
         gui.run()
 
     def host_game(self):
