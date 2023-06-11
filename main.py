@@ -1,5 +1,5 @@
 import tkinter as tk
-from tkinter import messagebox
+from tkinter import filedialog, messagebox
 import numpy as np
 
 
@@ -17,20 +17,102 @@ class MainMenu:
         self.exit_button = tk.Button(self.root, text="Exit", command=self.root.quit)
         self.exit_button.pack()
 
+        self.settings_window = None
+        self.zoom_sensitivity = 0.1
+        self.pan_distance = 1
+        self.schematics_folder = ""
+
     def run(self):
         self.root.mainloop()
 
     def play_game(self):
         self.root.destroy()  # Close the main menu window
-        gui = GameOfLifeGUI(100, 70, 10)
+        gui = GameOfLifeGUI(100, 70, 10, self.zoom_sensitivity, self.pan_distance, self.schematics_folder)
         gui.run()
 
     def host_game(self):
         print("Host")
 
 
+class SettingsWindow:
+    def __init__(self, parent, main_menu):
+        self.parent = parent
+        self.main_menu = main_menu
+        self.settings_window = tk.Toplevel(parent)
+        self.settings_window.title("Settings")
+
+        self.folder_path = main_menu.get_schematics_folder()
+
+        self.zoom_sensitivity_label = tk.Label(self.settings_window, text="Zoom Sensitivity:")
+        self.zoom_sensitivity_label.pack()
+
+        self.zoom_sensitivity_scale = tk.Scale(
+            self.settings_window,
+            from_=0.1,
+            to=1.0,
+            resolution=0.1,
+            orient=tk.HORIZONTAL,
+            length=200,
+            showvalue=main_menu.get_zoom_sensitivity()
+        )
+
+        self.zoom_sensitivity_scale.set(self.main_menu.get_zoom_sensitivity())
+        self.zoom_sensitivity_scale.pack()
+
+        self.pan_distance_label = tk.Label(self.settings_window, text="Pan Distance:")
+        self.pan_distance_label.pack()
+
+        self.pan_distance_scale = tk.Scale(
+            self.settings_window,
+            from_=1,
+            to=20,
+            resolution=1,
+            orient=tk.HORIZONTAL,
+            length=200,
+            showvalue=main_menu.get_pan_distance()
+        )
+
+        self.pan_distance_scale.set(self.main_menu.get_pan_distance())
+        self.pan_distance_scale.pack()
+
+        self.schematics_folder_label = tk.Label(self.settings_window, text="Schematics Folder:")
+        self.schematics_folder_label.pack()
+
+        self.schematics_folder_name_label = tk.Label(self.settings_window, text=f"{self.folder_path}")
+        self.schematics_folder_name_label.pack()
+
+        self.schematics_folder_button = tk.Button(
+            self.settings_window,
+            text="Select Folder",
+            command=self.select_schematics_folder
+        )
+        self.schematics_folder_button.pack()
+
+        self.save_button = tk.Button(self.settings_window, text="Save", command=lambda: self.save(float(self.zoom_sensitivity_scale.get()), float(self.pan_distance_scale.get()), self.folder_path))
+        self.save_button.pack()
+
+    def save(self, zoom_sensitivity, pan_distance, schematics_folder):
+        self.main_menu.update_settings(zoom_sensitivity, pan_distance, schematics_folder)
+        self.close_window()
+
+
+
+    def run(self):
+        self.settings_window.mainloop()
+
+    def close_window(self):
+        self.settings_window.destroy()
+        self.main_menu.settings_window = None
+
+    def select_schematics_folder(self):
+        folder_path = filedialog.askdirectory(parent=self.settings_window)
+        if folder_path:
+            self.folder_path = folder_path
+            self.schematics_folder_name_label.config(text=self.folder_path)
+
+
 class GameOfLifeGUI:
-    def __init__(self, width, height, cell_size):
+    def __init__(self, width, height, cell_size, zoom_sensitivity, pan_distance, schematics_folder):
         self.width = width
         self.height = height
         self.cell_size = cell_size
@@ -39,8 +121,8 @@ class GameOfLifeGUI:
         self.is_running = False
 
         self.zoom_scale = 1.0  # Initial zoom scale
-        self.zoom_delta = 0.1  # Zoom increment/decrement per scroll step
-        self.pan_distance = 10  # Distance to pan with each arrow key press
+        self.zoom_delta = zoom_sensitivity  # Zoom increment/decrement per scroll step
+        self.pan_distance = pan_distance  # Distance to pan with each arrow key press
 
         self.view_x = 0  # X coordinate of top-left corner of the view
         self.view_y = 0  # Y coordinate of top-left corner of the view
@@ -50,6 +132,8 @@ class GameOfLifeGUI:
         self.ruler_start_y = -1  # Y coordinate of the ruler start point
 
         self.show_borders = False  # Flag indicating if cell borders should be displayed
+
+        self.schematics_folder = schematics_folder
 
         self.root = tk.Tk()
         self.root.title("Game of Life")
@@ -81,10 +165,34 @@ class GameOfLifeGUI:
         self.ruler_button = tk.Button(self.control_frame, text="Ruler", command=self.toggle_ruler)
         self.ruler_button.pack(side="left")
 
-        self.border_button = tk.Button(self.control_frame, text="Toggle Borders", command=self.toggle_borders)
-        self.border_button.pack(side="left")
+        self.settings_menu = tk.Menu(self.root, tearoff=False)
+        self.settings_menu.add_command(label="Toggle Borders", command=self.toggle_borders)
+        self.settings_menu.add_command(label="Settings", command=self.open_settings)
+
+        self.menu_bar = tk.Menu(self.root)
+        self.menu_bar.add_command(label="Exit", command=self.return_to_main_menu)
+        self.menu_bar.add_cascade(label="Settings", menu=self.settings_menu)
+        self.root.config(menu=self.menu_bar)
 
         self.draw_field()
+
+    def update_settings(self, zoom_sensitivity, pan_distance, schematics_folder):
+        self.zoom_delta = zoom_sensitivity
+        self.pan_distance = pan_distance
+        self.schematics_folder = schematics_folder
+
+    def open_settings(self):
+        settings_window = SettingsWindow(self.root, self)
+        settings_window.run()
+
+    def get_zoom_sensitivity(self):
+        return self.zoom_delta
+
+    def get_pan_distance(self):
+        return self.pan_distance
+
+    def get_schematics_folder(self):
+        return self.schematics_folder
 
     def run(self):
         self.root.after(0, self.update_field)
@@ -203,17 +311,16 @@ class GameOfLifeGUI:
 
     def pan_with_arrow_keys(self, event):
         if event.keysym == "Up":
-            self.view_y -= self.pan_distance / (self.cell_size * self.zoom_scale)
+            self.view_y -= self.pan_distance
         elif event.keysym == "Down":
-            self.view_y += self.pan_distance / (self.cell_size * self.zoom_scale)
+            self.view_y += self.pan_distance
         elif event.keysym == "Left":
-            self.view_x -= self.pan_distance / (self.cell_size * self.zoom_scale)
+            self.view_x -= self.pan_distance
         elif event.keysym == "Right":
-            self.view_x += self.pan_distance / (self.cell_size * self.zoom_scale)
+            self.view_x += self.pan_distance
 
         # Redraw the field with the updated view position
         self.draw_field()
-
 
     def toggle_ruler(self):
         self.ruler_start_x = -1
@@ -262,6 +369,11 @@ class GameOfLifeGUI:
                     if neighbors == 3:
                         new_field[y, x] = True
         return new_field
+
+    def return_to_main_menu(self):
+        self.root.destroy()
+        menu = MainMenu()
+        menu.run()
 
 
 if __name__ == "__main__":
