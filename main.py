@@ -190,13 +190,13 @@ class GameOfLifeGUI:
         self.reset_button.config(state=tk.DISABLED)
 
     def start_selection(self, event):
-        self.selection_start_x = int((event.x + self.view_x * self.cell_size * self.zoom_scale) // (self.zoom_scale * self.cell_size))
-        self.selection_start_y = int((event.y + self.view_y * self.cell_size * self.zoom_scale) // (self.zoom_scale * self.cell_size))
+        self.selection_start_x = int((event.x) // (self.zoom_scale * self.cell_size))
+        self.selection_start_y = int((event.y) // (self.zoom_scale * self.cell_size))
         self.draw_field()
 
     def update_selection(self, event):
-        self.selection_end_x = int((event.x + self.view_x * self.cell_size * self.zoom_scale) // (self.zoom_scale * self.cell_size))+1
-        self.selection_end_y = int((event.y + self.view_y * self.cell_size * self.zoom_scale) // (self.zoom_scale * self.cell_size))+1
+        self.selection_end_x = int((event.x) // (self.zoom_scale * self.cell_size))+1
+        self.selection_end_y = int((event.y) // (self.zoom_scale * self.cell_size))+1
         self.draw_field()
 
     def end_selection(self, event):
@@ -223,7 +223,7 @@ class GameOfLifeGUI:
         )
         save_button.pack()
 
-        cancel_button = tk.Button(dialog, text="Cancel", command=dialog.destroy)
+        cancel_button = tk.Button(dialog, text="Cancel", command=lambda: self.save_schematic_reset(dialog))
         cancel_button.pack()
 
         dialog.protocol("WM_DELETE_WINDOW", lambda: self.save_schematic_reset(dialog))
